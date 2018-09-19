@@ -1,3 +1,10 @@
+--------------------------------------------------------
+动态语言：运行中编译变量类型 python
+静态语言：事先定义好变量类型 c c++ c# java
+强类型：定义后数据类型固定，不能赋值其他类型 python c# java
+弱类型：数据类型不固定，随便赋值其他类型的值 c c++
+--------------------------------------------------------
+
 -----------------------------------------------------------------------
 | 可迭代的：能够用for...in...遍历的，叫做可迭代的；如list,tuple,dict,set,str
 | 生成器：边循环边生成要素的机制,即可以用for...in...遍历，也可以采用next遍历；（一：全部生成，然后遍历；二边循环边生成）
@@ -27,3 +34,184 @@
               >>> int2('1000000')
               64
 ---------------------------------------------------------------------------------------------------------------------------------
+
+-------------------------------------------------------
+__slots__ = ("a", "b",...) 类中限定成员变量只能有"a","b"
+
+一般 _或者__开头的成员变量为类的私有属性，私有属性，不建议直接调用，需要封装get和set函数，但是调用繁琐，所以可以加入@property进行封装
+-------------------------------------------------------
+
+--------------------------------------------------------------
+@property 装饰类中函数，可以指定函数为成员属性，如
+class Student(object):
+    @property
+    def score(self):
+        return self._score
+       
+    @score.setter
+    def score(self, value):
+        if not isinstance(value, int):
+            return ValueError('score must be an integer!')
+        self._score = value
+
+if __name__ == "__main__":
+    s = Student()
+    s.score = 98
+    print(s.score)
+---------------------------------------------------------------
+
+
+---------------------------------------------------------------------------------------------------------------------
+MixIn
+------
+在设计类的继承关系时，通常，主线（主题属性：如鸟的公共属性：性别，大小等）都是单一继承下来的，例如，Ostrich继承自Bird。但是，
+如果需要“混入”额外的功能（比如不同鸟类的运动特点之类的，继承与一个定义运动的基类），通过多重继承就可以实现，比如，让Ostrich除
+了继承自Bird外，再同时继承Runnable。这种设计通常称之为MixIn。
+#多重继承
+class Dog(Mammal, RunnableMixIn, CarnivorousMixIn):
+    pass
+MixIn的目的就是给一个类增加多个功能，这样，在设计类的时候，我们优先考虑通过多重继承来组合多个MixIn的功能，而不是设计多层次的
+复杂的继承关系。
+--------------------------------------------------------------------------------------------------------------------
+
+
+----------------------------------------------------------------------------------------------------------------------
+定制类
+------
+>>> s = Student('Michael')
+>>> s
+<__main__.Student object at 0x109afb310>
+这是因为直接显示变量调用的不是__str__()，而是__repr__()，两者的区别是__str__()返回用户看到的字符串，而__repr__()返回程序开发者
+看到的字符串，也就是说，__repr__()是为调试服务的。
+
+解决办法是再定义一个__repr__ == __str__:
+class Student(object):
+    def __init__(self, name):
+        self.name = name
+    def __str__(self):
+        return 'Student object (name=%s)' % self.name
+    __repr__ = __str__
+
+---------
+__iter__
+---------
+如果一个类想被用于for ... in循环，类似list或tuple那样，就必须实现一个__iter__()方法，该方法返回一个迭代对象，然后，
+Python的for循环就会不断调用该迭代对象的__next__()方法拿到循环的下一个值，直到遇到StopIteration错误时退出循环。
+class Fib(object):
+    def __init__(self):
+        self.a, self.b = 0, 1 # 初始化两个计数器a，b
+
+    def __iter__(self):
+        return self # 实例本身就是迭代对象，故返回自己
+
+    def __next__(self):
+        self.a, self.b = self.b, self.a + self.b # 计算下一个值
+        if self.a > 100000: # 退出循环的条件
+            raise StopIteration()
+        return self.a # 返回下一个值
+        
+------------
+__getitem__
+------------
+Fib实例虽然能作用于for循环，看起来和list有点像，但是，把它当成list来使用还是不行，比如，取第5个元素：
+要表现得像list那样按照下标取出元素，需要实现__getitem__()方法：
+class Fib(object):
+    def __getitem__(self, n):
+        a, b = 1, 1
+        for x in range(n):
+            a, b = b, a + b
+        return a
+        
+但是list有个神奇的切片方法：
+
+>>> list(range(100))[5:10]
+[5, 6, 7, 8, 9]
+对于Fib却报错。原因是__getitem__()传入的参数可能是一个int，也可能是一个切片对象slice，所以要做判断：
+
+class Fib(object):
+    def __getitem__(self, n):
+        if isinstance(n, int): # n是索引
+            a, b = 1, 1
+            for x in range(n):
+                a, b = b, a + b
+            return a
+        if isinstance(n, slice): # n是切片
+            start = n.start
+            stop = n.stop
+            if start is None:
+                start = 0
+            a, b = 1, 1
+            L = []
+            for x in range(stop):
+                if x >= start:
+                    L.append(a)
+                a, b = b, a + b
+            return L
+------------            
+__getattr__
+------------
+类对象调用没有的属性就会报错，要避免这个错误，除了可以加上属性外，Python还有另一个机制，那就是写一个__getattr__()方法，
+动态返回一个属性。修改如下：
+class Student(object):
+
+    def __init__(self):
+        self.name = 'Michael'
+
+    def __getattr__(self, attr):
+        if attr=='score':
+            return 99
+注意，只有在没有找到属性的情况下，才调用__getattr__
+此外，注意到任意调用如s.abc都会返回None，这是因为我们定义的__getattr__默认返回就是None。要让class只响应特定的几个属性，
+我们就要按照约定，抛出AttributeError的错误：
+class Student(object):
+
+    def __getattr__(self, attr):
+        if attr=='age':
+            return lambda: 25
+        raise AttributeError('\'Student\' object has no attribute \'%s\'' % attr)
+ 
+---------
+__call__
+---------
+一个对象实例可以有自己的属性和方法，当我们调用实例方法时，我们用instance.method()来调用。能不能直接在实例本身上调用呢？在Python中，答案是肯定的。
+
+任何类，只需要定义一个__call__()方法，就可以直接对实例进行调用。请看示例：
+
+class Student(object):
+    def __init__(self, name):
+        self.name = name
+
+    def __call__(self):
+        print('My name is %s.' % self.name)
+调用方式如下：
+
+>>> s = Student('Michael')
+>>> s() # self参数不要传入
+My name is Michael.
+------------------------------------------------------------------------------------------------------------
+
+
+-------
+枚举类
+-------
+from enum import Enum
+Month = Enum('Month', ('Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'))
+这样我们就获得了Month类型的枚举类，可以直接使用Month.Jan来引用一个常量，或者枚举它的所有成员：
+
+for name, member in Month.__members__.items():
+    print(name, '=>', member, ',', member.value)
+    
+如果需要更精确地控制枚举类型，可以从Enum派生出自定义类：
+
+from enum import Enum, unique
+
+@unique
+class Weekday(Enum):
+    Sun = 0 # Sun的value被设定为0
+    Mon = 1
+    Tue = 2
+    Wed = 3
+    Thu = 4
+    Fri = 5
+    Sat = 6
+@unique装饰器可以帮助我们检查保证没有重复值。
